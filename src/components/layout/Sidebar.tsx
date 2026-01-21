@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { useLocation, Link } from "react-router-dom";
 import { 
   LayoutDashboard, 
   Wallet, 
@@ -35,7 +36,7 @@ const navItems: NavItem[] = [
 
 export const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [activeItem, setActiveItem] = useState("/");
+  const location = useLocation();
 
   return (
     <motion.aside
@@ -46,10 +47,7 @@ export const Sidebar = () => {
     >
       {/* Logo */}
       <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
-        <motion.div 
-          className="flex items-center gap-3"
-          animate={{ opacity: isCollapsed ? 0 : 1 }}
-        >
+        <motion.div className="flex items-center gap-3" animate={{ opacity: isCollapsed ? 0 : 1 }}>
           <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center glow-effect">
             <span className="text-primary-foreground font-bold text-lg">Q</span>
           </div>
@@ -60,16 +58,8 @@ export const Sidebar = () => {
             </div>
           )}
         </motion.div>
-        
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="p-2 rounded-lg hover:bg-sidebar-accent transition-colors"
-        >
-          {isCollapsed ? (
-            <ChevronRight className="w-4 h-4 text-muted-foreground" />
-          ) : (
-            <ChevronLeft className="w-4 h-4 text-muted-foreground" />
-          )}
+        <button onClick={() => setIsCollapsed(!isCollapsed)} className="p-2 rounded-lg hover:bg-sidebar-accent transition-colors">
+          {isCollapsed ? <ChevronRight className="w-4 h-4 text-muted-foreground" /> : <ChevronLeft className="w-4 h-4 text-muted-foreground" />}
         </button>
       </div>
 
@@ -77,45 +67,41 @@ export const Sidebar = () => {
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = activeItem === item.path;
-          
+          const isActive = location.pathname === item.path;
           return (
-            <motion.button
-              key={item.path}
-              onClick={() => setActiveItem(item.path)}
-              className={cn(
-                "w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200",
-                isActive 
-                  ? "bg-primary/10 text-primary" 
-                  : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
-              )}
-              whileHover={{ x: 4 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Icon className={cn("w-5 h-5 flex-shrink-0", isActive && "text-primary")} />
-              {!isCollapsed && (
-                <>
-                  <span className="font-medium">{item.label}</span>
-                  {item.badge && (
-                    <span className="ml-auto px-2 py-0.5 text-xs font-medium bg-primary/20 text-primary rounded-full">
-                      {item.badge}
-                    </span>
-                  )}
-                </>
-              )}
-            </motion.button>
+            <Link key={item.path} to={item.path}>
+              <motion.div
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200",
+                  isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+                )}
+                whileHover={{ x: 4 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Icon className={cn("w-5 h-5 flex-shrink-0", isActive && "text-primary")} />
+                {!isCollapsed && (
+                  <>
+                    <span className="font-medium">{item.label}</span>
+                    {item.badge && <span className="ml-auto px-2 py-0.5 text-xs font-medium bg-primary/20 text-primary rounded-full">{item.badge}</span>}
+                  </>
+                )}
+              </motion.div>
+            </Link>
           );
         })}
       </nav>
 
       {/* Settings */}
       <div className="p-3 border-t border-sidebar-border">
-        <button
-          className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-muted-foreground hover:bg-sidebar-accent hover:text-foreground transition-all"
-        >
-          <Settings className="w-5 h-5" />
-          {!isCollapsed && <span className="font-medium">Settings</span>}
-        </button>
+        <Link to="/settings">
+          <div className={cn(
+            "w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all",
+            location.pathname === "/settings" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+          )}>
+            <Settings className="w-5 h-5" />
+            {!isCollapsed && <span className="font-medium">Settings</span>}
+          </div>
+        </Link>
       </div>
     </motion.aside>
   );
