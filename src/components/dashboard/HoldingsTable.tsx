@@ -1,6 +1,10 @@
 import { motion } from "framer-motion";
-import { TrendingUp, TrendingDown, MoreHorizontal } from "lucide-react";
+import { TrendingUp, TrendingDown, MoreHorizontal, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useWallet } from "@/contexts/WalletContext";
+import { usePortfolioData, useCoinPrice } from "@/hooks/useQuaiData";
+import { Skeleton } from "@/components/ui/skeleton";
+import { formatBalance } from "@/lib/api/quaiscan";
 
 interface Holding {
   id: string;
@@ -15,7 +19,8 @@ interface Holding {
   pnlPercent: number;
 }
 
-const holdings: Holding[] = [
+// Mock holdings for demo
+const mockHoldings: Holding[] = [
   {
     id: "1",
     symbol: "QUAI",
@@ -79,6 +84,61 @@ const holdings: Holding[] = [
 ];
 
 export const HoldingsTable = () => {
+  const { address, isConnected } = useWallet();
+  const { tokens, quaiBalance, quaiPrice, isLoading } = usePortfolioData(address || undefined);
+  const { data: coinPrice } = useCoinPrice();
+
+  const realQuaiPrice = coinPrice?.result?.quai_usd 
+    ? parseFloat(coinPrice.result.quai_usd) 
+    : quaiPrice;
+
+  // Build holdings from API data or use mock
+  const holdings: Holding[] = isConnected && tokens.data?.items ? [
+    // Add native QUAI balance
+    ...(quaiBalance > 0 ? [{
+      id: "quai-native",
+      symbol: "QUAI",
+      name: "Quai Network",
+      logo: "🔷",
+      price: realQuaiPrice,
+      change24h: 5.23,
+      holdings: quaiBalance,
+      value: quaiBalance * realQuaiPrice,
+      pnl: 0,
+      pnlPercent: 0,
+    }] : []),
+    // Add token holdings
+    ...tokens.data.items.map((item, index) => ({
+      id: item.token.address || `token-${index}`,
+      symbol: item.token.symbol || "???",
+      name: item.token.name || "Unknown Token",
+      logo: item.token.icon_url ? "🪙" : "🪙",
+      price: parseFloat(item.value) / (parseFloat(item.balance) / Math.pow(10, item.token.decimals || 18)) || 0,
+      change24h: 0,
+      holdings: parseFloat(item.balance) / Math.pow(10, item.token.decimals || 18),
+      value: parseFloat(item.value) || 0,
+      pnl: 0,
+      pnlPercent: 0,
+    })),
+  ] : mockHoldings;
+
+  if (isConnected && isLoading) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-2xl bg-card border border-border overflow-hidden card-shadow p-6"
+      >
+        <Skeleton className="h-6 w-32 mb-4" />
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -88,109 +148,121 @@ export const HoldingsTable = () => {
     >
       <div className="p-6 border-b border-border">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-foreground">Holdings</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-foreground">Holdings</h3>
+            {!isConnected && (
+              <span className="text-xs px-2 py-0.5 bg-warning/20 text-warning rounded">Demo</span>
+            )}
+          </div>
           <button className="text-sm text-primary hover:text-primary/80 transition-colors">
             View All
           </button>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-border">
-              <th className="text-left text-xs font-medium text-muted-foreground px-6 py-3">Asset</th>
-              <th className="text-right text-xs font-medium text-muted-foreground px-6 py-3">Price</th>
-              <th className="text-right text-xs font-medium text-muted-foreground px-6 py-3 hidden sm:table-cell">24h</th>
-              <th className="text-right text-xs font-medium text-muted-foreground px-6 py-3">Holdings</th>
-              <th className="text-right text-xs font-medium text-muted-foreground px-6 py-3 hidden md:table-cell">Value</th>
-              <th className="text-right text-xs font-medium text-muted-foreground px-6 py-3">P&L</th>
-              <th className="text-right text-xs font-medium text-muted-foreground px-6 py-3 w-12"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {holdings.map((holding, index) => (
-              <motion.tr
-                key={holding.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: index * 0.05 }}
-                className="border-b border-border/50 hover:bg-muted/30 transition-colors"
-              >
-                {/* Asset */}
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-xl">
-                      {holding.logo}
+      {holdings.length === 0 ? (
+        <div className="p-12 text-center">
+          <Wallet className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <p className="text-muted-foreground">No holdings found</p>
+          <p className="text-sm text-muted-foreground">Connect your wallet to see your holdings</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left text-xs font-medium text-muted-foreground px-6 py-3">Asset</th>
+                <th className="text-right text-xs font-medium text-muted-foreground px-6 py-3">Price</th>
+                <th className="text-right text-xs font-medium text-muted-foreground px-6 py-3 hidden sm:table-cell">24h</th>
+                <th className="text-right text-xs font-medium text-muted-foreground px-6 py-3">Holdings</th>
+                <th className="text-right text-xs font-medium text-muted-foreground px-6 py-3 hidden md:table-cell">Value</th>
+                <th className="text-right text-xs font-medium text-muted-foreground px-6 py-3">P&L</th>
+                <th className="text-right text-xs font-medium text-muted-foreground px-6 py-3 w-12"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {holdings.map((holding, index) => (
+                <motion.tr
+                  key={holding.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: index * 0.05 }}
+                  className="border-b border-border/50 hover:bg-muted/30 transition-colors"
+                >
+                  {/* Asset */}
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-xl">
+                        {holding.logo}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-foreground">{holding.symbol}</p>
+                        <p className="text-xs text-muted-foreground">{holding.name}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-semibold text-foreground">{holding.symbol}</p>
-                      <p className="text-xs text-muted-foreground">{holding.name}</p>
+                  </td>
+
+                  {/* Price */}
+                  <td className="px-6 py-4 text-right">
+                    <span className="font-medium mono text-foreground">
+                      ${holding.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </td>
+
+                  {/* 24h Change */}
+                  <td className="px-6 py-4 text-right hidden sm:table-cell">
+                    <div className={cn(
+                      "inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium",
+                      holding.change24h >= 0 ? "bg-success/10 text-gain" : "bg-destructive/10 text-loss"
+                    )}>
+                      {holding.change24h >= 0 ? (
+                        <TrendingUp className="w-3 h-3" />
+                      ) : (
+                        <TrendingDown className="w-3 h-3" />
+                      )}
+                      {holding.change24h >= 0 ? "+" : ""}{holding.change24h.toFixed(2)}%
                     </div>
-                  </div>
-                </td>
+                  </td>
 
-                {/* Price */}
-                <td className="px-6 py-4 text-right">
-                  <span className="font-medium mono text-foreground">
-                    ${holding.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </td>
+                  {/* Holdings */}
+                  <td className="px-6 py-4 text-right">
+                    <span className="font-medium mono text-foreground">
+                      {holding.holdings.toLocaleString('en-US', { maximumFractionDigits: 4 })}
+                    </span>
+                  </td>
 
-                {/* 24h Change */}
-                <td className="px-6 py-4 text-right hidden sm:table-cell">
-                  <div className={cn(
-                    "inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium",
-                    holding.change24h >= 0 ? "bg-success/10 text-gain" : "bg-destructive/10 text-loss"
-                  )}>
-                    {holding.change24h >= 0 ? (
-                      <TrendingUp className="w-3 h-3" />
-                    ) : (
-                      <TrendingDown className="w-3 h-3" />
-                    )}
-                    {holding.change24h >= 0 ? "+" : ""}{holding.change24h.toFixed(2)}%
-                  </div>
-                </td>
+                  {/* Value */}
+                  <td className="px-6 py-4 text-right hidden md:table-cell">
+                    <span className="font-medium mono text-foreground">
+                      ${holding.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </td>
 
-                {/* Holdings */}
-                <td className="px-6 py-4 text-right">
-                  <span className="font-medium mono text-foreground">
-                    {holding.holdings.toLocaleString('en-US', { maximumFractionDigits: 4 })}
-                  </span>
-                </td>
+                  {/* P&L */}
+                  <td className="px-6 py-4 text-right">
+                    <div className={cn(
+                      "font-medium mono",
+                      holding.pnl >= 0 ? "text-gain" : "text-loss"
+                    )}>
+                      <p>{holding.pnl >= 0 ? "+" : ""}${holding.pnl.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                      <p className="text-xs">
+                        {holding.pnlPercent >= 0 ? "+" : ""}{holding.pnlPercent.toFixed(1)}%
+                      </p>
+                    </div>
+                  </td>
 
-                {/* Value */}
-                <td className="px-6 py-4 text-right hidden md:table-cell">
-                  <span className="font-medium mono text-foreground">
-                    ${holding.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </td>
-
-                {/* P&L */}
-                <td className="px-6 py-4 text-right">
-                  <div className={cn(
-                    "font-medium mono",
-                    holding.pnl >= 0 ? "text-gain" : "text-loss"
-                  )}>
-                    <p>{holding.pnl >= 0 ? "+" : ""}${holding.pnl.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
-                    <p className="text-xs">
-                      {holding.pnlPercent >= 0 ? "+" : ""}{holding.pnlPercent.toFixed(1)}%
-                    </p>
-                  </div>
-                </td>
-
-                {/* Actions */}
-                <td className="px-6 py-4 text-right">
-                  <button className="p-1.5 rounded-lg hover:bg-muted transition-colors">
-                    <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-                  </button>
-                </td>
-              </motion.tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                  {/* Actions */}
+                  <td className="px-6 py-4 text-right">
+                    <button className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+                      <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                  </td>
+                </motion.tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </motion.div>
   );
 };

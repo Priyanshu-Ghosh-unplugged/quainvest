@@ -1,7 +1,9 @@
 import { motion } from "framer-motion";
-import { TrendingUp, TrendingDown, Flame, ChevronRight } from "lucide-react";
+import { TrendingUp, TrendingDown, Flame, ChevronRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
+import { useNavigate } from "react-router-dom";
+import { useCoinPrice, useNetworkStats } from "@/hooks/useQuaiData";
 
 interface MarketToken {
   id: string;
@@ -15,18 +17,8 @@ interface MarketToken {
   isTrending?: boolean;
 }
 
-const marketTokens: MarketToken[] = [
-  {
-    id: "1",
-    symbol: "QUAI",
-    name: "Quai Network",
-    logo: "🔷",
-    price: 2.45,
-    change24h: 5.23,
-    volume24h: 12500000,
-    sparkline: [1.8, 2.1, 2.0, 2.3, 2.2, 2.4, 2.45],
-    isTrending: true,
-  },
+// Mock data for non-QUAI tokens
+const staticTokens: MarketToken[] = [
   {
     id: "2",
     symbol: "ETH",
@@ -61,6 +53,29 @@ const marketTokens: MarketToken[] = [
 ];
 
 export const MarketOverview = () => {
+  const navigate = useNavigate();
+  const { data: coinPrice, isLoading: priceLoading } = useCoinPrice();
+  const { data: networkStats } = useNetworkStats();
+
+  // Build QUAI token from live data
+  const quaiPrice = coinPrice?.result?.quai_usd 
+    ? parseFloat(coinPrice.result.quai_usd) 
+    : 2.45;
+  
+  const quaiToken: MarketToken = {
+    id: "1",
+    symbol: "QUAI",
+    name: "Quai Network",
+    logo: "🔷",
+    price: quaiPrice,
+    change24h: 5.23, // Would need historical data for real change
+    volume24h: networkStats?.total_transactions ? parseInt(networkStats.total_transactions) : 12500000,
+    sparkline: [quaiPrice * 0.95, quaiPrice * 0.97, quaiPrice * 0.96, quaiPrice * 0.98, quaiPrice * 0.99, quaiPrice * 1.01, quaiPrice],
+    isTrending: true,
+  };
+
+  const marketTokens = [quaiToken, ...staticTokens];
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -69,8 +84,14 @@ export const MarketOverview = () => {
       className="rounded-2xl bg-card border border-border p-6 card-shadow"
     >
       <div className="flex items-center justify-between mb-6">
-        <h3 className="font-semibold text-foreground">Market Overview</h3>
-        <button className="flex items-center gap-1 text-sm text-primary hover:text-primary/80 transition-colors">
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-foreground">Market Overview</h3>
+          {priceLoading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+        </div>
+        <button 
+          onClick={() => navigate("/markets")}
+          className="flex items-center gap-1 text-sm text-primary hover:text-primary/80 transition-colors"
+        >
           View Markets
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -92,7 +113,7 @@ interface TokenCardProps {
 
 const TokenCard = ({ token, index }: TokenCardProps) => {
   const isPositive = token.change24h >= 0;
-  const sparklineData = token.sparkline.map((value, i) => ({ value }));
+  const sparklineData = token.sparkline.map((value) => ({ value }));
 
   return (
     <motion.div
