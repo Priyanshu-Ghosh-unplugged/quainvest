@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { ArrowDownToLine, ArrowUpFromLine, RefreshCw, PiggyBank } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 
 const actions = [
   {
@@ -8,32 +8,34 @@ const actions = [
     label: "Buy",
     description: "Purchase crypto",
     variant: "default" as const,
-    gradient: "from-primary to-accent",
+    route: "/trade?action=buy",
   },
   {
     icon: ArrowUpFromLine,
     label: "Sell",
     description: "Sell holdings",
     variant: "secondary" as const,
-    gradient: "from-chart-2 to-chart-5",
+    route: "/trade?action=sell",
   },
   {
     icon: RefreshCw,
     label: "Swap",
     description: "Exchange tokens",
     variant: "secondary" as const,
-    gradient: "from-chart-4 to-primary",
+    route: "/trade?action=swap",
   },
   {
     icon: PiggyBank,
     label: "DCA",
     description: "Auto-invest",
     variant: "secondary" as const,
-    gradient: "from-chart-3 to-chart-2",
+    route: "/trade?action=dca",
   },
 ];
 
 export const QuickActions = () => {
+  const navigate = useNavigate();
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -55,8 +57,9 @@ export const QuickActions = () => {
               transition={{ duration: 0.3, delay: index * 0.05 }}
               whileHover={{ scale: 1.02, y: -2 }}
               whileTap={{ scale: 0.98 }}
+              onClick={() => navigate(action.route)}
               className={`
-                relative overflow-hidden p-4 rounded-xl text-left transition-all
+                relative overflow-hidden p-4 rounded-xl text-left transition-all cursor-pointer
                 ${action.variant === 'default' 
                   ? 'bg-primary text-primary-foreground glow-effect' 
                   : 'bg-secondary hover:bg-muted border border-border'
