@@ -1,8 +1,24 @@
-import { Bell, Search, Wallet } from "lucide-react";
+import { Bell, Search, Wallet, LogOut, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
+import { useWallet } from "@/contexts/WalletContext";
+import { useNetworkStatus, useCoinPrice } from "@/hooks/useQuaiData";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export const Header = () => {
+  const { address, isConnected, isConnecting, connect, disconnect } = useWallet();
+  const { data: networkStatus } = useNetworkStatus();
+  const { data: coinPrice } = useCoinPrice();
+
+  const quaiPrice = coinPrice?.result?.quai_usd 
+    ? parseFloat(coinPrice.result.quai_usd).toFixed(2) 
+    : null;
+
   return (
     <header className="sticky top-0 z-40 flex items-center justify-between h-16 px-6 bg-background/80 backdrop-blur-xl border-b border-border">
       {/* Search */}
@@ -22,10 +38,21 @@ export const Header = () => {
 
       {/* Actions */}
       <div className="flex items-center gap-3">
+        {/* QUAI Price */}
+        {quaiPrice && (
+          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-secondary rounded-lg">
+            <span className="text-xl">🔷</span>
+            <span className="text-xs font-medium text-muted-foreground">QUAI</span>
+            <span className="text-sm font-semibold text-foreground">${quaiPrice}</span>
+          </div>
+        )}
+
         {/* Network Status */}
         <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-secondary rounded-lg">
           <span className="w-2 h-2 bg-success rounded-full animate-pulse" />
-          <span className="text-xs font-medium text-muted-foreground">Quai Mainnet</span>
+          <span className="text-xs font-medium text-muted-foreground">
+            {networkStatus ? `Block #${networkStatus.blockNumber.toLocaleString()}` : "Quai Mainnet"}
+          </span>
         </div>
 
         {/* Notifications */}
@@ -38,11 +65,41 @@ export const Header = () => {
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full" />
         </motion.button>
 
-        {/* Connect Wallet */}
-        <Button variant="default" className="gap-2 rounded-xl">
-          <Wallet className="w-4 h-4" />
-          <span className="hidden sm:inline">Connect Wallet</span>
-        </Button>
+        {/* Connect/Disconnect Wallet */}
+        {isConnected && address ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2 rounded-xl border-primary/50 bg-primary/10">
+                <Wallet className="w-4 h-4 text-primary" />
+                <span className="hidden sm:inline font-mono text-sm">
+                  {address.slice(0, 6)}...{address.slice(-4)}
+                </span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={disconnect} className="text-destructive cursor-pointer">
+                <LogOut className="w-4 h-4 mr-2" />
+                Disconnect
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <Button 
+            variant="default" 
+            className="gap-2 rounded-xl"
+            onClick={connect}
+            disabled={isConnecting}
+          >
+            {isConnecting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Wallet className="w-4 h-4" />
+            )}
+            <span className="hidden sm:inline">
+              {isConnecting ? "Connecting..." : "Connect Wallet"}
+            </span>
+          </Button>
+        )}
       </div>
     </header>
   );

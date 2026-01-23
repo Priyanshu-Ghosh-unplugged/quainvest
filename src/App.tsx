@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { WalletProvider } from "@/contexts/WalletContext";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import Index from "./pages/Index";
@@ -30,24 +31,26 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => (
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<AppLayout><Index /></AppLayout>} />
-          <Route path="/portfolio" element={<AppLayout><Portfolio /></AppLayout>} />
-          <Route path="/markets" element={<AppLayout><Markets /></AppLayout>} />
-          <Route path="/trade" element={<AppLayout><Trade /></AppLayout>} />
-          <Route path="/analytics" element={<AppLayout><Analytics /></AppLayout>} />
-          <Route path="/risk" element={<AppLayout><Risk /></AppLayout>} />
-          <Route path="/learn" element={<AppLayout><Learn /></AppLayout>} />
-          <Route path="/community" element={<AppLayout><Community /></AppLayout>} />
-          <Route path="/settings" element={<AppLayout><Settings /></AppLayout>} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <WalletProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<AppLayout><Index /></AppLayout>} />
+            <Route path="/portfolio" element={<AppLayout><Portfolio /></AppLayout>} />
+            <Route path="/markets" element={<AppLayout><Markets /></AppLayout>} />
+            <Route path="/trade" element={<AppLayout><Trade /></AppLayout>} />
+            <Route path="/analytics" element={<AppLayout><Analytics /></AppLayout>} />
+            <Route path="/risk" element={<AppLayout><Risk /></AppLayout>} />
+            <Route path="/learn" element={<AppLayout><Learn /></AppLayout>} />
+            <Route path="/community" element={<AppLayout><Community /></AppLayout>} />
+            <Route path="/settings" element={<AppLayout><Settings /></AppLayout>} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </WalletProvider>
   </QueryClientProvider>
 );
 
