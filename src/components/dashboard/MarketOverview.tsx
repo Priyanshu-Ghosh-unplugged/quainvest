@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { TrendingUp, TrendingDown, Flame, ChevronRight, Loader2 } from "lucide-react";
+import { TrendingUp, TrendingDown, Flame, ChevronRight, Loader2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
 import { useNavigate } from "react-router-dom";
@@ -17,64 +17,46 @@ interface MarketToken {
   isTrending?: boolean;
 }
 
-// Mock data for non-QUAI tokens
-const staticTokens: MarketToken[] = [
-  {
-    id: "2",
-    symbol: "ETH",
-    name: "Ethereum",
-    logo: "⟠",
-    price: 3245.67,
-    change24h: -1.24,
-    volume24h: 8900000000,
-    sparkline: [3300, 3280, 3290, 3260, 3250, 3240, 3245],
-  },
-  {
-    id: "3",
-    symbol: "BTC",
-    name: "Bitcoin",
-    logo: "₿",
-    price: 43256.78,
-    change24h: 2.15,
-    volume24h: 25000000000,
-    sparkline: [42000, 42500, 42800, 43100, 43000, 43200, 43256],
-    isTrending: true,
-  },
-  {
-    id: "4",
-    symbol: "SOL",
-    name: "Solana",
-    logo: "◎",
-    price: 98.45,
-    change24h: 4.87,
-    volume24h: 1200000000,
-    sparkline: [92, 94, 93, 96, 95, 97, 98.45],
-  },
-];
-
 export const MarketOverview = () => {
   const navigate = useNavigate();
-  const { data: coinPrice, isLoading: priceLoading } = useCoinPrice();
+  const { data: coinPrice, isLoading: priceLoading, isError } = useCoinPrice();
   const { data: networkStats } = useNetworkStats();
 
   // Build QUAI token from live data
-  const quaiPrice = coinPrice?.result?.quai_usd 
-    ? parseFloat(coinPrice.result.quai_usd) 
-    : 2.45;
+  const quaiPrice = coinPrice?.result?.coin_usd 
+    ? parseFloat(coinPrice.result.coin_usd) 
+    : 0;
   
+  const totalTransactions = networkStats?.total_transactions 
+    ? parseInt(networkStats.total_transactions) 
+    : 0;
+
   const quaiToken: MarketToken = {
     id: "1",
     symbol: "QUAI",
     name: "Quai Network",
     logo: "🔷",
     price: quaiPrice,
-    change24h: 5.23, // Would need historical data for real change
-    volume24h: networkStats?.total_transactions ? parseInt(networkStats.total_transactions) : 12500000,
-    sparkline: [quaiPrice * 0.95, quaiPrice * 0.97, quaiPrice * 0.96, quaiPrice * 0.98, quaiPrice * 0.99, quaiPrice * 1.01, quaiPrice],
+    change24h: 0, // Historical data needed for real change
+    volume24h: totalTransactions,
+    sparkline: quaiPrice > 0 ? [quaiPrice * 0.95, quaiPrice * 0.97, quaiPrice * 0.96, quaiPrice * 0.98, quaiPrice * 0.99, quaiPrice * 1.01, quaiPrice] : [],
     isTrending: true,
   };
 
-  const marketTokens = [quaiToken, ...staticTokens];
+  if (isError) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-2xl bg-card border border-border p-6 card-shadow"
+      >
+        <div className="flex items-center gap-3 text-destructive">
+          <AlertCircle className="w-5 h-5" />
+          <span>Failed to load market data</span>
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -98,10 +80,41 @@ export const MarketOverview = () => {
       </div>
 
       <div className="space-y-3">
-        {marketTokens.map((token, index) => (
-          <TokenCard key={token.id} token={token} index={index} />
-        ))}
+        {quaiPrice > 0 ? (
+          <TokenCard token={quaiToken} index={0} />
+        ) : priceLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            <p>Price data unavailable</p>
+            <p className="text-sm">Check network connection</p>
+          </div>
+        )}
       </div>
+
+      {/* Network Stats */}
+      {networkStats && (
+        <div className="mt-6 pt-4 border-t border-border grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-xs text-muted-foreground">Total Blocks</p>
+            <p className="font-semibold mono">{parseInt(networkStats.total_blocks || "0").toLocaleString()}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Total Transactions</p>
+            <p className="font-semibold mono">{parseInt(networkStats.total_transactions || "0").toLocaleString()}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Total Addresses</p>
+            <p className="font-semibold mono">{parseInt(networkStats.total_addresses || "0").toLocaleString()}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Transactions Today</p>
+            <p className="font-semibold mono">{parseInt(networkStats.transactions_today || "0").toLocaleString()}</p>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 };
@@ -139,38 +152,40 @@ const TokenCard = ({ token, index }: TokenCardProps) => {
       </div>
 
       {/* Sparkline */}
-      <div className="w-16 h-8 hidden sm:block">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={sparklineData}>
-            <defs>
-              <linearGradient id={`gradient-${token.id}`} x1="0" y1="0" x2="0" y2="1">
-                <stop 
-                  offset="0%" 
-                  stopColor={isPositive ? "hsl(160, 84%, 39%)" : "hsl(0, 72%, 55%)"} 
-                  stopOpacity={0.3}
-                />
-                <stop 
-                  offset="100%" 
-                  stopColor={isPositive ? "hsl(160, 84%, 39%)" : "hsl(0, 72%, 55%)"} 
-                  stopOpacity={0}
-                />
-              </linearGradient>
-            </defs>
-            <Area
-              type="monotone"
-              dataKey="value"
-              stroke={isPositive ? "hsl(160, 84%, 39%)" : "hsl(0, 72%, 55%)"}
-              strokeWidth={1.5}
-              fill={`url(#gradient-${token.id})`}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
+      {sparklineData.length > 0 && (
+        <div className="w-16 h-8 hidden sm:block">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={sparklineData}>
+              <defs>
+                <linearGradient id={`gradient-${token.id}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop 
+                    offset="0%" 
+                    stopColor={isPositive ? "hsl(160, 84%, 39%)" : "hsl(0, 72%, 55%)"} 
+                    stopOpacity={0.3}
+                  />
+                  <stop 
+                    offset="100%" 
+                    stopColor={isPositive ? "hsl(160, 84%, 39%)" : "hsl(0, 72%, 55%)"} 
+                    stopOpacity={0}
+                  />
+                </linearGradient>
+              </defs>
+              <Area
+                type="monotone"
+                dataKey="value"
+                stroke={isPositive ? "hsl(160, 84%, 39%)" : "hsl(0, 72%, 55%)"}
+                strokeWidth={1.5}
+                fill={`url(#gradient-${token.id})`}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* Price & Change */}
       <div className="text-right flex-shrink-0">
         <p className="font-semibold mono text-foreground">
-          ${token.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          ${token.price.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}
         </p>
         <div className={cn(
           "flex items-center justify-end gap-1 text-xs font-medium",

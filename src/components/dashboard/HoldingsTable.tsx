@@ -1,10 +1,10 @@
 import { motion } from "framer-motion";
-import { TrendingUp, TrendingDown, MoreHorizontal, Wallet } from "lucide-react";
+import { TrendingUp, TrendingDown, MoreHorizontal, Wallet, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWallet } from "@/contexts/WalletContext";
 import { usePortfolioData, useCoinPrice } from "@/hooks/useQuaiData";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatBalance } from "@/lib/api/quaiscan";
+import { Button } from "@/components/ui/button";
 
 interface Holding {
   id: string;
@@ -15,85 +15,19 @@ interface Holding {
   change24h: number;
   holdings: number;
   value: number;
-  pnl: number;
-  pnlPercent: number;
 }
 
-// Mock holdings for demo
-const mockHoldings: Holding[] = [
-  {
-    id: "1",
-    symbol: "QUAI",
-    name: "Quai Network",
-    logo: "🔷",
-    price: 2.45,
-    change24h: 5.23,
-    holdings: 23500,
-    value: 57575,
-    pnl: 8234.56,
-    pnlPercent: 16.7,
-  },
-  {
-    id: "2",
-    symbol: "ETH",
-    name: "Ethereum",
-    logo: "⟠",
-    price: 3245.67,
-    change24h: -1.24,
-    holdings: 9.85,
-    value: 31969.85,
-    pnl: 4521.32,
-    pnlPercent: 16.5,
-  },
-  {
-    id: "3",
-    symbol: "BTC",
-    name: "Bitcoin",
-    logo: "₿",
-    price: 43256.78,
-    change24h: 2.15,
-    holdings: 0.45,
-    value: 19465.55,
-    pnl: 2845.67,
-    pnlPercent: 17.1,
-  },
-  {
-    id: "4",
-    symbol: "USDC",
-    name: "USD Coin",
-    logo: "💵",
-    price: 1.0,
-    change24h: 0.01,
-    holdings: 12834.92,
-    value: 12834.92,
-    pnl: 0,
-    pnlPercent: 0,
-  },
-  {
-    id: "5",
-    symbol: "LINK",
-    name: "Chainlink",
-    logo: "⬡",
-    price: 15.67,
-    change24h: 3.45,
-    holdings: 400,
-    value: 6268,
-    pnl: -234.56,
-    pnlPercent: -3.6,
-  },
-];
-
 export const HoldingsTable = () => {
-  const { address, isConnected } = useWallet();
-  const { tokens, quaiBalance, quaiPrice, isLoading } = usePortfolioData(address || undefined);
+  const { address, isConnected, connect, isConnecting } = useWallet();
+  const { tokens, quaiBalance, quaiPrice, isLoading, isError } = usePortfolioData(address || undefined);
   const { data: coinPrice } = useCoinPrice();
 
-  const realQuaiPrice = coinPrice?.result?.quai_usd 
-    ? parseFloat(coinPrice.result.quai_usd) 
+  const realQuaiPrice = coinPrice?.result?.coin_usd 
+    ? parseFloat(coinPrice.result.coin_usd) 
     : quaiPrice;
 
-  // Build holdings from API data or use mock
-  const holdings: Holding[] = isConnected && tokens.data?.items ? [
+  // Build holdings from API data
+  const holdings: Holding[] = isConnected && !isLoading ? [
     // Add native QUAI balance
     ...(quaiBalance > 0 ? [{
       id: "quai-native",
@@ -101,28 +35,47 @@ export const HoldingsTable = () => {
       name: "Quai Network",
       logo: "🔷",
       price: realQuaiPrice,
-      change24h: 5.23,
+      change24h: 0,
       holdings: quaiBalance,
       value: quaiBalance * realQuaiPrice,
-      pnl: 0,
-      pnlPercent: 0,
     }] : []),
     // Add token holdings
-    ...tokens.data.items.map((item, index) => ({
+    ...(tokens.data?.items?.map((item, index) => ({
       id: item.token.address || `token-${index}`,
       symbol: item.token.symbol || "???",
       name: item.token.name || "Unknown Token",
-      logo: item.token.icon_url ? "🪙" : "🪙",
+      logo: "🪙",
       price: parseFloat(item.value) / (parseFloat(item.balance) / Math.pow(10, item.token.decimals || 18)) || 0,
       change24h: 0,
       holdings: parseFloat(item.balance) / Math.pow(10, item.token.decimals || 18),
       value: parseFloat(item.value) || 0,
-      pnl: 0,
-      pnlPercent: 0,
-    })),
-  ] : mockHoldings;
+    })) || []),
+  ] : [];
 
-  if (isConnected && isLoading) {
+  // Show connect wallet prompt if not connected
+  if (!isConnected) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-2xl bg-card border border-border overflow-hidden card-shadow"
+      >
+        <div className="p-6 border-b border-border">
+          <h3 className="font-semibold text-foreground">Holdings</h3>
+        </div>
+        <div className="p-12 text-center">
+          <Wallet className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <p className="text-foreground font-medium mb-2">No Wallet Connected</p>
+          <p className="text-sm text-muted-foreground mb-4">Connect your wallet to view your holdings</p>
+          <Button onClick={connect} disabled={isConnecting}>
+            {isConnecting ? "Connecting..." : "Connect Wallet"}
+          </Button>
+        </div>
+      </motion.div>
+    );
+  }
+
+  if (isLoading) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -139,6 +92,21 @@ export const HoldingsTable = () => {
     );
   }
 
+  if (isError) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-2xl bg-card border border-border overflow-hidden card-shadow p-6"
+      >
+        <div className="flex items-center gap-3 text-destructive">
+          <AlertCircle className="w-5 h-5" />
+          <span>Failed to load holdings. Please try again.</span>
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -148,12 +116,7 @@ export const HoldingsTable = () => {
     >
       <div className="p-6 border-b border-border">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-foreground">Holdings</h3>
-            {!isConnected && (
-              <span className="text-xs px-2 py-0.5 bg-warning/20 text-warning rounded">Demo</span>
-            )}
-          </div>
+          <h3 className="font-semibold text-foreground">Holdings</h3>
           <button className="text-sm text-primary hover:text-primary/80 transition-colors">
             View All
           </button>
@@ -164,7 +127,7 @@ export const HoldingsTable = () => {
         <div className="p-12 text-center">
           <Wallet className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
           <p className="text-muted-foreground">No holdings found</p>
-          <p className="text-sm text-muted-foreground">Connect your wallet to see your holdings</p>
+          <p className="text-sm text-muted-foreground">This wallet has no QUAI or tokens</p>
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -173,10 +136,8 @@ export const HoldingsTable = () => {
               <tr className="border-b border-border">
                 <th className="text-left text-xs font-medium text-muted-foreground px-6 py-3">Asset</th>
                 <th className="text-right text-xs font-medium text-muted-foreground px-6 py-3">Price</th>
-                <th className="text-right text-xs font-medium text-muted-foreground px-6 py-3 hidden sm:table-cell">24h</th>
                 <th className="text-right text-xs font-medium text-muted-foreground px-6 py-3">Holdings</th>
                 <th className="text-right text-xs font-medium text-muted-foreground px-6 py-3 hidden md:table-cell">Value</th>
-                <th className="text-right text-xs font-medium text-muted-foreground px-6 py-3">P&L</th>
                 <th className="text-right text-xs font-medium text-muted-foreground px-6 py-3 w-12"></th>
               </tr>
             </thead>
@@ -205,23 +166,8 @@ export const HoldingsTable = () => {
                   {/* Price */}
                   <td className="px-6 py-4 text-right">
                     <span className="font-medium mono text-foreground">
-                      ${holding.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      ${holding.price.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}
                     </span>
-                  </td>
-
-                  {/* 24h Change */}
-                  <td className="px-6 py-4 text-right hidden sm:table-cell">
-                    <div className={cn(
-                      "inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium",
-                      holding.change24h >= 0 ? "bg-success/10 text-gain" : "bg-destructive/10 text-loss"
-                    )}>
-                      {holding.change24h >= 0 ? (
-                        <TrendingUp className="w-3 h-3" />
-                      ) : (
-                        <TrendingDown className="w-3 h-3" />
-                      )}
-                      {holding.change24h >= 0 ? "+" : ""}{holding.change24h.toFixed(2)}%
-                    </div>
                   </td>
 
                   {/* Holdings */}
@@ -236,19 +182,6 @@ export const HoldingsTable = () => {
                     <span className="font-medium mono text-foreground">
                       ${holding.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
-                  </td>
-
-                  {/* P&L */}
-                  <td className="px-6 py-4 text-right">
-                    <div className={cn(
-                      "font-medium mono",
-                      holding.pnl >= 0 ? "text-gain" : "text-loss"
-                    )}>
-                      <p>{holding.pnl >= 0 ? "+" : ""}${holding.pnl.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
-                      <p className="text-xs">
-                        {holding.pnlPercent >= 0 ? "+" : ""}{holding.pnlPercent.toFixed(1)}%
-                      </p>
-                    </div>
                   </td>
 
                   {/* Actions */}

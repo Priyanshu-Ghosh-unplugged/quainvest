@@ -1,5 +1,5 @@
-// Quaiscan REST API v2 - Base URL: https://quaiscan.io/api
-const BASE_URL = "https://quaiscan.io/api";
+// Quaiscan REST API v2 - Proxied through Edge Function
+import { supabase } from "@/integrations/supabase/client";
 
 // Types
 export interface AddressInfo {
@@ -90,8 +90,14 @@ export interface NetworkStats {
   total_addresses: string;
   transactions_today: string;
   average_block_time: number;
-  coin_price: string;
+  coin_price: string | null;
   market_cap: string;
+  gas_prices: {
+    slow: number | null;
+    average: number | null;
+    fast: number | null;
+  };
+  network_utilization_percentage: number;
 }
 
 export interface Block {
@@ -112,21 +118,34 @@ export interface CoinPriceResponse {
   status: string;
   message: string;
   result: {
-    quai_usd: string;
-    quai_btc: string;
+    coin_usd: string | null;
+    coin_btc: string | null;
   };
 }
 
-// API Functions
+// Helper function to call the edge function
+async function proxyRestCall<T>(endpoint: string): Promise<T> {
+  const { data, error } = await supabase.functions.invoke("quai-proxy", {
+    body: { type: "rest", endpoint },
+  });
+
+  if (error) {
+    throw new Error(`Proxy error: ${error.message}`);
+  }
+
+  if (data?.error) {
+    throw new Error(data.error);
+  }
+
+  return data as T;
+}
 
 /**
  * 1. GET /api/v2/addresses/{address}
  * Get complete account details for portfolio overview
  */
 export async function getAddressInfo(address: string): Promise<AddressInfo> {
-  const response = await fetch(`${BASE_URL}/v2/addresses/${address}`);
-  if (!response.ok) throw new Error(`Failed to fetch address info: ${response.status}`);
-  return response.json();
+  return proxyRestCall<AddressInfo>(`/v2/addresses/${address}`);
 }
 
 /**
@@ -141,10 +160,8 @@ export async function getAddressTokens(
   if (options?.filterType) params.set("filter_token_type_by", options.filterType);
   if (options?.itemsCount) params.set("items_count", options.itemsCount.toString());
   
-  const url = `${BASE_URL}/v2/addresses/${address}/tokens${params.toString() ? `?${params}` : ""}`;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Failed to fetch tokens: ${response.status}`);
-  return response.json();
+  const queryString = params.toString() ? `?${params}` : "";
+  return proxyRestCall<TokensResponse>(`/v2/addresses/${address}/tokens${queryString}`);
 }
 
 /**
@@ -160,10 +177,8 @@ export async function getAddressTransactions(
   if (options?.index) params.set("index", options.index.toString());
   if (options?.itemsCount) params.set("items_count", options.itemsCount.toString());
   
-  const url = `${BASE_URL}/v2/addresses/${address}/transactions${params.toString() ? `?${params}` : ""}`;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Failed to fetch transactions: ${response.status}`);
-  return response.json();
+  const queryString = params.toString() ? `?${params}` : "";
+  return proxyRestCall<TransactionsResponse>(`/v2/addresses/${address}/transactions${queryString}`);
 }
 
 /**
@@ -171,9 +186,7 @@ export async function getAddressTransactions(
  * Track token transfer history for detailed portfolio tracking
  */
 export async function getAddressTokenTransfers(address: string): Promise<TokenTransfersResponse> {
-  const response = await fetch(`${BASE_URL}/v2/addresses/${address}/token-transfers`);
-  if (!response.ok) throw new Error(`Failed to fetch token transfers: ${response.status}`);
-  return response.json();
+  return proxyRestCall<TokenTransfersResponse>(`/v2/addresses/${address}/token-transfers`);
 }
 
 /**
@@ -181,9 +194,7 @@ export async function getAddressTokenTransfers(address: string): Promise<TokenTr
  * Get detailed token metadata for token detail pages
  */
 export async function getTokenInfo(tokenAddress: string): Promise<TokenInfo> {
-  const response = await fetch(`${BASE_URL}/v2/tokens/${tokenAddress}`);
-  if (!response.ok) throw new Error(`Failed to fetch token info: ${response.status}`);
-  return response.json();
+  return proxyRestCall<TokenInfo>(`/v2/tokens/${tokenAddress}`);
 }
 
 /**
@@ -191,9 +202,7 @@ export async function getTokenInfo(tokenAddress: string): Promise<TokenInfo> {
  * Analyze holder distribution for risk assessment
  */
 export async function getTokenHolders(tokenAddress: string): Promise<TokenHoldersResponse> {
-  const response = await fetch(`${BASE_URL}/v2/tokens/${tokenAddress}/holders`);
-  if (!response.ok) throw new Error(`Failed to fetch token holders: ${response.status}`);
-  return response.json();
+  return proxyRestCall<TokenHoldersResponse>(`/v2/tokens/${tokenAddress}/holders`);
 }
 
 /**
@@ -201,9 +210,7 @@ export async function getTokenHolders(tokenAddress: string): Promise<TokenHolder
  * Track token trading volume and liquidity
  */
 export async function getTokenTransfers(tokenAddress: string): Promise<TokenTransfersResponse> {
-  const response = await fetch(`${BASE_URL}/v2/tokens/${tokenAddress}/transfers`);
-  if (!response.ok) throw new Error(`Failed to fetch token transfers: ${response.status}`);
-  return response.json();
+  return proxyRestCall<TokenTransfersResponse>(`/v2/tokens/${tokenAddress}/transfers`);
 }
 
 /**
@@ -211,9 +218,7 @@ export async function getTokenTransfers(tokenAddress: string): Promise<TokenTran
  * Get network-wide statistics for market dashboard
  */
 export async function getNetworkStats(): Promise<NetworkStats> {
-  const response = await fetch(`${BASE_URL}/v2/stats`);
-  if (!response.ok) throw new Error(`Failed to fetch network stats: ${response.status}`);
-  return response.json();
+  return proxyRestCall<NetworkStats>("/v2/stats");
 }
 
 /**
@@ -222,9 +227,7 @@ export async function getNetworkStats(): Promise<NetworkStats> {
  */
 export async function getBlocks(blockNumber?: number): Promise<BlocksResponse> {
   const params = blockNumber ? `?block_number=${blockNumber}` : "";
-  const response = await fetch(`${BASE_URL}/v2/blocks${params}`);
-  if (!response.ok) throw new Error(`Failed to fetch blocks: ${response.status}`);
-  return response.json();
+  return proxyRestCall<BlocksResponse>(`/v2/blocks${params}`);
 }
 
 /**
@@ -232,9 +235,7 @@ export async function getBlocks(blockNumber?: number): Promise<BlocksResponse> {
  * GET /api?module=stats&action=coinprice
  */
 export async function getCoinPrice(): Promise<CoinPriceResponse> {
-  const response = await fetch(`${BASE_URL}?module=stats&action=coinprice`);
-  if (!response.ok) throw new Error(`Failed to fetch coin price: ${response.status}`);
-  return response.json();
+  return proxyRestCall<CoinPriceResponse>("?module=stats&action=coinprice");
 }
 
 /**
@@ -242,9 +243,7 @@ export async function getCoinPrice(): Promise<CoinPriceResponse> {
  * GET /api?module=stats&action=tokensupply&contractaddress=0x...
  */
 export async function getTokenSupply(contractAddress: string): Promise<{ status: string; result: string }> {
-  const response = await fetch(`${BASE_URL}?module=stats&action=tokensupply&contractaddress=${contractAddress}`);
-  if (!response.ok) throw new Error(`Failed to fetch token supply: ${response.status}`);
-  return response.json();
+  return proxyRestCall<{ status: string; result: string }>(`?module=stats&action=tokensupply&contractaddress=${contractAddress}`);
 }
 
 // Utility functions

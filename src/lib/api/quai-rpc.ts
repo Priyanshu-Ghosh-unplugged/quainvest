@@ -1,26 +1,7 @@
-// Quai Network JSON-RPC 2.0 API
-// Base URL: https://rpc.quai.network/cyprus1/api/eth-rpc
-
-const RPC_URL = "https://rpc.quai.network/cyprus1/api/eth-rpc";
+// Quai Network JSON-RPC 2.0 API - Proxied through Edge Function
+import { supabase } from "@/integrations/supabase/client";
 
 // Types
-interface JsonRpcRequest {
-  jsonrpc: "2.0";
-  method: string;
-  params: unknown[];
-  id: number;
-}
-
-interface JsonRpcResponse<T> {
-  jsonrpc: "2.0";
-  result: T;
-  id: number;
-  error?: {
-    code: number;
-    message: string;
-  };
-}
-
 export interface BlockInfo {
   number: string;
   hash: string;
@@ -40,34 +21,21 @@ export interface GasEstimate {
   totalCostQuai: number;
 }
 
-// Helper function for RPC calls
+// Helper function for RPC calls via edge function
 async function rpcCall<T>(method: string, params: unknown[] = []): Promise<T> {
-  const request: JsonRpcRequest = {
-    jsonrpc: "2.0",
-    method,
-    params,
-    id: Date.now(),
-  };
-
-  const response = await fetch(RPC_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
+  const { data, error } = await supabase.functions.invoke("quai-proxy", {
+    body: { type: "rpc", rpcMethod: method, rpcParams: params },
   });
 
-  if (!response.ok) {
-    throw new Error(`RPC request failed: ${response.status}`);
+  if (error) {
+    throw new Error(`RPC proxy error: ${error.message}`);
   }
 
-  const data: JsonRpcResponse<T> = await response.json();
-  
-  if (data.error) {
-    throw new Error(`RPC error: ${data.error.message}`);
+  if (data?.error) {
+    throw new Error(data.error);
   }
 
-  return data.result;
+  return data.result as T;
 }
 
 /**
@@ -75,8 +43,7 @@ async function rpcCall<T>(method: string, params: unknown[] = []): Promise<T> {
  * Get native QUAI balance (core for portfolio value)
  */
 export async function getBalance(address: string, block: string = "latest"): Promise<string> {
-  const result = await rpcCall<string>("quai_getBalance", [address, block]);
-  return result;
+  return rpcCall<string>("quai_getBalance", [address, block]);
 }
 
 /**
@@ -181,7 +148,7 @@ export async function getGasEstimate(txObject: {
   const [gasLimit, gasPrice, priorityFee] = await Promise.all([
     estimateGas(txObject),
     getGasPrice(),
-    getMaxPriorityFeePerGas().catch(() => "0x0"), // Fallback if not supported
+    getMaxPriorityFeePerGas().catch(() => "0x0"),
   ]);
 
   const gasLimitBigInt = BigInt(gasLimit);
