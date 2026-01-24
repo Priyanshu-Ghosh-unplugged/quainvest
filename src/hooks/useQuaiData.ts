@@ -232,7 +232,7 @@ export function usePortfolioData(address: string | undefined) {
 
   // Calculate total portfolio value
   const quaiBalance = balance.data?.quai || 0;
-  const quaiPrice = coinPrice.data?.result?.quai_usd ? parseFloat(coinPrice.data.result.quai_usd) : 0;
+  const quaiPrice = coinPrice.data?.result?.coin_usd ? parseFloat(coinPrice.data.result.coin_usd) : 0;
   const quaiValue = quaiBalance * quaiPrice;
 
   // Token values

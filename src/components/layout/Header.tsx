@@ -15,8 +15,8 @@ export const Header = () => {
   const { data: networkStatus } = useNetworkStatus();
   const { data: coinPrice } = useCoinPrice();
 
-  const quaiPrice = coinPrice?.result?.quai_usd 
-    ? parseFloat(coinPrice.result.quai_usd).toFixed(2) 
+  const quaiPrice = coinPrice?.result?.coin_usd 
+    ? parseFloat(coinPrice.result.coin_usd).toFixed(2) 
     : null;
 
   return (

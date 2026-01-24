@@ -1,11 +1,12 @@
 import { motion } from "framer-motion";
-import { ArrowDownLeft, ArrowUpRight, RefreshCw, CheckCircle, Clock, Wallet } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, RefreshCw, CheckCircle, Clock, Wallet, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWallet } from "@/contexts/WalletContext";
 import { useAddressTransactions, useCoinPrice } from "@/hooks/useQuaiData";
 import { Skeleton } from "@/components/ui/skeleton";
-import { weiToQuai, shortenAddress } from "@/lib/api/quaiscan";
+import { weiToQuai } from "@/lib/api/quaiscan";
 import { formatDistanceToNow } from "date-fns";
+import { Button } from "@/components/ui/button";
 
 interface Transaction {
   id: string;
@@ -16,45 +17,6 @@ interface Transaction {
   status: "completed" | "pending";
   timestamp: string;
 }
-
-const mockTransactions: Transaction[] = [
-  {
-    id: "1",
-    type: "buy",
-    asset: "QUAI",
-    amount: 500,
-    value: 1225,
-    status: "completed",
-    timestamp: "2 min ago",
-  },
-  {
-    id: "2",
-    type: "swap",
-    asset: "ETH → QUAI",
-    amount: 0.5,
-    value: 1622.83,
-    status: "completed",
-    timestamp: "1 hour ago",
-  },
-  {
-    id: "3",
-    type: "sell",
-    asset: "BTC",
-    amount: 0.02,
-    value: 865.14,
-    status: "pending",
-    timestamp: "2 hours ago",
-  },
-  {
-    id: "4",
-    type: "receive",
-    asset: "USDC",
-    amount: 2500,
-    value: 2500,
-    status: "completed",
-    timestamp: "1 day ago",
-  },
-];
 
 const getTransactionIcon = (type: Transaction["type"]) => {
   switch (type) {
@@ -83,13 +45,13 @@ const getTransactionColor = (type: Transaction["type"]) => {
 };
 
 export const RecentActivity = () => {
-  const { address, isConnected } = useWallet();
-  const { data: txData, isLoading } = useAddressTransactions(address || undefined);
+  const { address, isConnected, connect, isConnecting } = useWallet();
+  const { data: txData, isLoading, isError } = useAddressTransactions(address || undefined);
   const { data: coinPrice } = useCoinPrice();
 
-  const quaiPrice = coinPrice?.result?.quai_usd 
-    ? parseFloat(coinPrice.result.quai_usd) 
-    : 2.45;
+  const quaiPrice = coinPrice?.result?.coin_usd 
+    ? parseFloat(coinPrice.result.coin_usd) 
+    : 0;
 
   // Transform API transactions to display format
   const transactions: Transaction[] = isConnected && txData?.items 
@@ -109,9 +71,30 @@ export const RecentActivity = () => {
             : "Unknown",
         };
       })
-    : mockTransactions;
+    : [];
 
-  if (isConnected && isLoading) {
+  // Show connect wallet prompt if not connected
+  if (!isConnected) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-2xl bg-card border border-border p-6 card-shadow"
+      >
+        <h3 className="font-semibold text-foreground mb-6">Recent Activity</h3>
+        <div className="py-8 text-center">
+          <Wallet className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+          <p className="text-foreground font-medium mb-2">No Wallet Connected</p>
+          <p className="text-sm text-muted-foreground mb-4">Connect to view transactions</p>
+          <Button onClick={connect} disabled={isConnecting} size="sm">
+            {isConnecting ? "Connecting..." : "Connect Wallet"}
+          </Button>
+        </div>
+      </motion.div>
+    );
+  }
+
+  if (isLoading) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -128,6 +111,21 @@ export const RecentActivity = () => {
     );
   }
 
+  if (isError) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-2xl bg-card border border-border p-6 card-shadow"
+      >
+        <div className="flex items-center gap-3 text-destructive">
+          <AlertCircle className="w-5 h-5" />
+          <span>Failed to load activity</span>
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -136,12 +134,7 @@ export const RecentActivity = () => {
       className="rounded-2xl bg-card border border-border p-6 card-shadow"
     >
       <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-foreground">Recent Activity</h3>
-          {!isConnected && (
-            <span className="text-xs px-2 py-0.5 bg-warning/20 text-warning rounded">Demo</span>
-          )}
-        </div>
+        <h3 className="font-semibold text-foreground">Recent Activity</h3>
         <button className="text-sm text-primary hover:text-primary/80 transition-colors">
           View All
         </button>
@@ -151,6 +144,7 @@ export const RecentActivity = () => {
         <div className="py-8 text-center">
           <Wallet className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
           <p className="text-muted-foreground">No recent activity</p>
+          <p className="text-sm text-muted-foreground">Transactions will appear here</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -189,7 +183,7 @@ export const RecentActivity = () => {
                 {/* Value & Time */}
                 <div className="text-right flex-shrink-0">
                   <p className="font-medium mono text-foreground">
-                    ${tx.value.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    ${tx.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                   <p className="text-xs text-muted-foreground">{tx.timestamp}</p>
                 </div>
