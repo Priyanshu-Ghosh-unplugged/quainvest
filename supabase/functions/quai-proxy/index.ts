@@ -1,14 +1,14 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const QUAISCAN_BASE_URL = "https://quaiscan.io/api";
-const QUAI_RPC_URL = "https://rpc.quai.network/cyprus1/api/eth-rpc";
+const QUAISCAN_BASE_URL = "https://quaiscan.io/api/v2";
+const QUAI_RPC_URL = "https://rpc.quai.network/cyprus1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+serve(async (req: Request) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
