@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const QUAISCAN_BASE_URL = "https://quaiscan.io/api/v2";
-const QUAI_RPC_URL = "https://rpc.quai.network/cyprus1";
+const QUAI_RPC_URL = "https://rpc.quai.network/cyprus1/";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
