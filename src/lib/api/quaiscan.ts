@@ -124,16 +124,24 @@ export interface CoinPriceResponse {
 }
 
 // Helper function to call the edge function
-async function proxyRestCall<T>(endpoint: string): Promise<T> {
+async function proxyRestCall<T>(endpoint: string, defaultOnNotFound?: T): Promise<T> {
   const { data, error } = await supabase.functions.invoke("quai-proxy", {
     body: { type: "rest", endpoint },
   });
 
   if (error) {
+    // If we have a default for 404s and this is a 404, return the default
+    if (defaultOnNotFound !== undefined && error.message?.includes("404")) {
+      return defaultOnNotFound;
+    }
     throw new Error(`Proxy error: ${error.message}`);
   }
 
   if (data?.error) {
+    // Handle 404 errors gracefully for address endpoints (address has no activity)
+    if (defaultOnNotFound !== undefined && data.error.includes("404")) {
+      return defaultOnNotFound;
+    }
     throw new Error(data.error);
   }
 
@@ -161,7 +169,8 @@ export async function getAddressTokens(
   if (options?.itemsCount) params.set("items_count", options.itemsCount.toString());
   
   const queryString = params.toString() ? `?${params}` : "";
-  return proxyRestCall<TokensResponse>(`/v2/addresses/${address}/tokens${queryString}`);
+  // Return empty items array if address has no activity (404)
+  return proxyRestCall<TokensResponse>(`/v2/addresses/${address}/tokens${queryString}`, { items: [], next_page_params: null });
 }
 
 /**
@@ -178,7 +187,8 @@ export async function getAddressTransactions(
   if (options?.itemsCount) params.set("items_count", options.itemsCount.toString());
   
   const queryString = params.toString() ? `?${params}` : "";
-  return proxyRestCall<TransactionsResponse>(`/v2/addresses/${address}/transactions${queryString}`);
+  // Return empty items array if address has no activity (404)
+  return proxyRestCall<TransactionsResponse>(`/v2/addresses/${address}/transactions${queryString}`, { items: [], next_page_params: null });
 }
 
 /**
@@ -186,7 +196,8 @@ export async function getAddressTransactions(
  * Track token transfer history for detailed portfolio tracking
  */
 export async function getAddressTokenTransfers(address: string): Promise<TokenTransfersResponse> {
-  return proxyRestCall<TokenTransfersResponse>(`/v2/addresses/${address}/token-transfers`);
+  // Return empty items array if address has no activity (404)
+  return proxyRestCall<TokenTransfersResponse>(`/v2/addresses/${address}/token-transfers`, { items: [], next_page_params: null });
 }
 
 /**
