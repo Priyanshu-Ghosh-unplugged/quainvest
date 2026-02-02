@@ -86,9 +86,15 @@ export function hexToGwei(hexPrice: string): number {
 /**
  * 14. quai_maxPriorityFeePerGas
  * Get priority fee for fast execution
+ * Note: This method may not be available on all Quai RPC endpoints
  */
 export async function getMaxPriorityFeePerGas(): Promise<string> {
-  return rpcCall<string>("quai_maxPriorityFeePerGas", []);
+  try {
+    return await rpcCall<string>("quai_maxPriorityFeePerGas", []);
+  } catch {
+    // Method not available on this RPC endpoint, return zero
+    return "0x0";
+  }
 }
 
 /**
@@ -172,11 +178,18 @@ export async function getNetworkStatus(): Promise<{
   gasPrice: number;
   priorityFee: number;
 }> {
-  const [blockNumberHex, gasPriceHex, priorityFeeHex] = await Promise.all([
+  const [blockNumberHex, gasPriceHex] = await Promise.all([
     getBlockNumber(),
     getGasPrice(),
-    getMaxPriorityFeePerGas().catch(() => "0x0"),
   ]);
+  
+  // Priority fee may not be available, handle gracefully
+  let priorityFeeHex = "0x0";
+  try {
+    priorityFeeHex = await getMaxPriorityFeePerGas();
+  } catch {
+    // Silently use default
+  }
 
   return {
     blockNumber: hexToNumber(blockNumberHex),
