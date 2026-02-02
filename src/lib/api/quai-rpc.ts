@@ -1,5 +1,6 @@
 // Quai Network JSON-RPC 2.0 API - Proxied through Edge Function
 import { supabase } from "@/integrations/supabase/client";
+import { getAddress, isQuaiAddress } from "quais";
 
 // Types
 export interface BlockInfo {
@@ -21,6 +22,13 @@ export interface GasEstimate {
   totalCostQuai: number;
 }
 
+// RPC response type
+interface RpcResponse<T> {
+  result: T | null;
+  methodNotAvailable?: boolean;
+  error?: string;
+}
+
 // Helper function for RPC calls via edge function
 async function rpcCall<T>(method: string, params: unknown[] = []): Promise<T> {
   const { data, error } = await supabase.functions.invoke("quai-proxy", {
@@ -31,11 +39,45 @@ async function rpcCall<T>(method: string, params: unknown[] = []): Promise<T> {
     throw new Error(`RPC proxy error: ${error.message}`);
   }
 
-  if (data?.error) {
-    throw new Error(data.error);
+  const response = data as RpcResponse<T>;
+  
+  if (response?.error) {
+    throw new Error(response.error);
   }
 
-  return data.result as T;
+  // Handle method not available
+  if (response?.methodNotAvailable) {
+    throw new Error(`Method ${method} not available`);
+  }
+
+  return response.result as T;
+}
+
+/**
+ * Convert address to proper Quai checksummed format
+ */
+export function toChecksumAddress(address: string): string {
+  if (!address) return address;
+  
+  try {
+    // Use quais getAddress for proper Quai checksum
+    return getAddress(address);
+  } catch {
+    // If checksum fails, return as-is
+    return address;
+  }
+}
+
+/**
+ * Validate if an address is a valid Quai address
+ */
+export function isValidQuaiAddress(address: string): boolean {
+  if (!address) return false;
+  try {
+    return isQuaiAddress(address);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -43,7 +85,9 @@ async function rpcCall<T>(method: string, params: unknown[] = []): Promise<T> {
  * Get native QUAI balance (core for portfolio value)
  */
 export async function getBalance(address: string, block: string = "latest"): Promise<string> {
-  return rpcCall<string>("quai_getBalance", [address, block]);
+  // Use proper EIP-55 checksummed address
+  const checksummedAddress = toChecksumAddress(address);
+  return rpcCall<string>("quai_getBalance", [checksummedAddress, block]);
 }
 
 /**
@@ -64,7 +108,13 @@ export async function estimateGas(txObject: {
   value?: string;
   data?: string;
 }): Promise<string> {
-  return rpcCall<string>("quai_estimateGas", [txObject]);
+  // Use proper EIP-55 checksummed addresses
+  const normalizedTx = {
+    ...txObject,
+    from: toChecksumAddress(txObject.from),
+    to: toChecksumAddress(txObject.to),
+  };
+  return rpcCall<string>("quai_estimateGas", [normalizedTx]);
 }
 
 /**

@@ -78,20 +78,27 @@ serve(async (req: Request) => {
 
       data = await response.json();
       
-      // Handle RPC-level errors
+      // Handle RPC-level errors - but let some through for client handling
       if (data.error) {
-        console.error(`RPC method error: ${JSON.stringify(data.error)}`);
-        return new Response(
-          JSON.stringify({ error: data.error.message, code: data.error.code }),
-          { 
-            status: 400, 
-            headers: { ...corsHeaders, "Content-Type": "application/json" } 
-          }
-        );
+        // For "method not found" errors, return empty result instead of error
+        // This allows the client to handle gracefully
+        if (data.error.code === -32601) {
+          console.log(`RPC method not available: ${rpcMethod}`);
+          data = { result: null, methodNotAvailable: true };
+        } else {
+          console.error(`RPC method error: ${JSON.stringify(data.error)}`);
+          return new Response(
+            JSON.stringify({ error: data.error.message, code: data.error.code }),
+            { 
+              status: 400, 
+              headers: { ...corsHeaders, "Content-Type": "application/json" } 
+            }
+          );
+        }
+      } else {
+        // Return just the result for RPC calls
+        data = { result: data.result };
       }
-
-      // Return just the result for RPC calls
-      data = { result: data.result };
     } else {
       return new Response(
         JSON.stringify({ error: "Invalid request type. Use 'rest' or 'rpc'" }),
